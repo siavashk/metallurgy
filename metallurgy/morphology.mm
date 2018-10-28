@@ -9,7 +9,9 @@ namespace
     {
     public:
         MorphologyIOS(
-            const uint kernel
+            const uint kernel,
+            const uint width,
+            const uint height
         ) {
             device_ = MTLCreateSystemDefaultDevice();
             kernelSize_ = kernel;
@@ -17,54 +19,56 @@ namespace
             library_ = [device_ newDefaultLibrary];
             commandQueue_ = [device_ newCommandQueue];
             identityFunction_ = [library_ newFunctionWithName:@"identity"];
+            
+            MTLTextureDescriptor* readDesc = [MTLTextureDescriptor texture2DDescriptorWithPixelFormat:MTLPixelFormat::MTLPixelFormatR8Uint
+                width:width height:height mipmapped:false];
+            
+            MTLTextureDescriptor* writeDesc = [MTLTextureDescriptor texture2DDescriptorWithPixelFormat:MTLPixelFormat::MTLPixelFormatR8Uint
+                width:width height:height mipmapped:false];
+            
+            [writeDesc setUsage:MTLTextureUsageShaderWrite];
+            
+            inTexture_ = [device_ newTextureWithDescriptor:readDesc];
+            outTexture_ = [device_ newTextureWithDescriptor:writeDesc];
+            
+            entireImage_ = MTLRegionMake2D(0, 0, width, height);
+            
+            pipelineState_ = [device_ newComputePipelineStateWithFunction:identityFunction_ error:NULL];
+            
         }
 
         virtual ~MorphologyIOS() override {}
 
         virtual std::shared_ptr<unsigned char> dilate(
-            const std::shared_ptr<unsigned char>& inImage,
-            const int width,
-            const int height
+            const std::shared_ptr<unsigned char>& inImage
         ) override {
-            pipelineState_ = [device_ newComputePipelineStateWithFunction:identityFunction_ error:NULL];
-            commandBuffer_ = [commandQueue_ commandBuffer];
-            commandEncoder_ = [commandBuffer_ computeCommandEncoder];
-            [commandEncoder_ setComputePipelineState:pipelineState_];
-            
-            MTLTextureDescriptor* readDesc = [MTLTextureDescriptor texture2DDescriptorWithPixelFormat:MTLPixelFormat::MTLPixelFormatR8Uint
-                width:width height:height mipmapped:true];
-            
-            MTLTextureDescriptor* writeDesc = [MTLTextureDescriptor texture2DDescriptorWithPixelFormat:MTLPixelFormat::MTLPixelFormatR8Uint
-                width:width height:height mipmapped:true];
-
-            [writeDesc setUsage:MTLTextureUsageShaderWrite];
-            
-            id<MTLTexture> inTexture = [device_ newTextureWithDescriptor:readDesc];
-            id<MTLTexture> outTexture = [device_ newTextureWithDescriptor:writeDesc];
-            
-            MTLRegion entireImage = MTLRegionMake2D(0, 0, width, height);
-            [inTexture replaceRegion:entireImage mipmapLevel:0 withBytes:reinterpret_cast<void*>(inImage.get()) bytesPerRow:height];
-            
-            [commandEncoder_ setTexture:inTexture atIndex:0];
-            [commandEncoder_ setTexture:outTexture atIndex:1];
-            [commandEncoder_ setBuffer:buffer_ offset:0 atIndex:0];
-            
-            MTLSize threadGroupCount = MTLSizeMake(5, 5, 1);
-            MTLSize threadGroups = MTLSizeMake(inTexture.width / threadGroupCount.width,
-                inTexture.height / threadGroupCount.height, 1);
-            
-            [commandEncoder_ dispatchThreadgroups:threadGroups threadsPerThreadgroup:threadGroupCount];
-            [commandEncoder_ endEncoding];
-            [commandBuffer_ commit];
-            [commandBuffer_ waitUntilCompleted];
-            
-            void* result = malloc(width * height);
-            
-            [outTexture getBytes:result bytesPerRow:width fromRegion:entireImage mipmapLevel:0];
-            
+            void* result = malloc(outTexture_.width * outTexture_.height);
             std::shared_ptr<unsigned char> outImage;
-            outImage.reset(reinterpret_cast<unsigned char*>(result));
-            
+            @autoreleasepool
+            {
+                commandBuffer_ = [commandQueue_ commandBuffer];
+                commandEncoder_ = [commandBuffer_ computeCommandEncoder];
+                [commandEncoder_ setComputePipelineState:pipelineState_];
+
+                [inTexture_ replaceRegion:entireImage_ mipmapLevel:0 withBytes:inImage.get() bytesPerRow:outTexture_.width];
+
+                [commandEncoder_ setTexture:inTexture_ atIndex:0];
+                [commandEncoder_ setTexture:outTexture_ atIndex:1];
+                [commandEncoder_ setBuffer:buffer_ offset:0 atIndex:0];
+
+                MTLSize threadGroupCount = MTLSizeMake(10, 10, 1);
+                MTLSize threadGroups = MTLSizeMake(inTexture_.width / threadGroupCount.width,
+                    inTexture_.height / threadGroupCount.height, 1);
+
+                [commandEncoder_ dispatchThreadgroups:threadGroups threadsPerThreadgroup:threadGroupCount];
+                [commandEncoder_ endEncoding];
+                [commandBuffer_ commit];
+                [commandBuffer_ waitUntilCompleted];
+
+                [outTexture_ getBytes:result bytesPerRow:outTexture_.width fromRegion:entireImage_ mipmapLevel:0];
+                outImage.reset(reinterpret_cast<unsigned char*>(result));
+            }
+
             return outImage;
         }
 
@@ -78,6 +82,9 @@ namespace
         id<MTLFunction> identityFunction_;
         id<MTLCommandBuffer> commandBuffer_;
         id<MTLComputeCommandEncoder> commandEncoder_;
+        id<MTLTexture> inTexture_;
+        id<MTLTexture> outTexture_;
+        MTLRegion entireImage_;
     };
 }
 
@@ -86,7 +93,9 @@ met::Morphology::~Morphology()
 }
 
 std::unique_ptr<Morphology> met::createMorphology(
-    const uint kernelSize
+    const uint kernelSize,
+    const uint width,
+    const uint height
 ) {
-    return std::make_unique<MorphologyIOS>(kernelSize);
+    return std::make_unique<MorphologyIOS>(kernelSize, width, height);
 }
