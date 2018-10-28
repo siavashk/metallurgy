@@ -17,5 +17,7 @@ namespace met
         ) = 0;
     };
 
-    std::unique_ptr<Morphology> createMorphology();
+    std::unique_ptr<Morphology> createMorphology(
+        const uint kernelSize
+    );
 }

@@ -35,13 +35,24 @@ namespace
         }
         return pixels;
     }
+    void print(
+        const unsigned char* pixels,
+        const int length
+    ) {
+        for (int i=0; i < length; i++)
+        {
+            for (int j=0; j < length; j++)
+                std::cout << int(*(pixels + i * length + j)) << ", ";
+            std::cout << std::endl;
+        }
+    }
 }
 
 int main(int argc, char* argv[])
 {
-    auto morph = createMorphology();
+    auto morph = createMorphology(3);
     
-    const int length = 25;
+    const int length = 11;
     const int kernel = 3;
     
     unsigned char* pixels = makeSquare(kernel, length);
@@ -50,6 +61,12 @@ int main(int argc, char* argv[])
     image.reset(pixels);
 
     auto dilated = morph->dilate(image, length, length);
+    
+    std::cout << "Original image is a square of 1s of length " << kernel
+        << " in a background of zeros of length: " << length << " :" << std::endl;
+    print(image.get(), length);
+    std::cout << "The dilated image has slightly more 1s than the original: " << std::endl;
+    print(dilated.get(), length);
 
     return EXIT_SUCCESS;
 }

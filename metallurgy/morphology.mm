@@ -8,9 +8,12 @@ namespace
     class MorphologyIOS : public Morphology
     {
     public:
-        MorphologyIOS()
-        {
+        MorphologyIOS(
+            const uint kernel
+        ) {
             device_ = MTLCreateSystemDefaultDevice();
+            kernelSize_ = kernel;
+            buffer_ = [device_ newBufferWithBytes:&kernelSize_ length:4 options:MTLStorageModeShared];
             library_ = [device_ newDefaultLibrary];
             commandQueue_ = [device_ newCommandQueue];
             identityFunction_ = [library_ newFunctionWithName:@"identity"];
@@ -43,6 +46,7 @@ namespace
             
             [commandEncoder_ setTexture:inTexture atIndex:0];
             [commandEncoder_ setTexture:outTexture atIndex:1];
+            [commandEncoder_ setBuffer:buffer_ offset:0 atIndex:0];
             
             MTLSize threadGroupCount = MTLSizeMake(5, 5, 1);
             MTLSize threadGroups = MTLSizeMake(inTexture.width / threadGroupCount.width,
@@ -65,6 +69,8 @@ namespace
 
     private:
         id<MTLDevice> device_;
+        uint kernelSize_;
+        id<MTLBuffer> buffer_;
         id<MTLLibrary> library_;
         id<MTLComputePipelineState> pipelineState_;
         id<MTLCommandQueue> commandQueue_;
@@ -78,7 +84,8 @@ met::Morphology::~Morphology()
 {
 }
 
-std::unique_ptr<Morphology> met::createMorphology()
-{
-    return std::make_unique<MorphologyIOS>();
+std::unique_ptr<Morphology> met::createMorphology(
+    const uint kernelSize
+) {
+    return std::make_unique<MorphologyIOS>(kernelSize);
 }
