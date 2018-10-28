@@ -17,10 +17,6 @@ namespace
             library_ = [device_ newDefaultLibrary];
             commandQueue_ = [device_ newCommandQueue];
             identityFunction_ = [library_ newFunctionWithName:@"identity"];
-            pipelineState_ = [device_ newComputePipelineStateWithFunction:identityFunction_ error:NULL];
-            commandBuffer_ = [commandQueue_ commandBuffer];
-            commandEncoder_ = [commandBuffer_ computeCommandEncoder];
-            [commandEncoder_ setComputePipelineState:pipelineState_];
         }
 
         virtual ~MorphologyIOS() override {}
@@ -30,6 +26,11 @@ namespace
             const int width,
             const int height
         ) override {
+            pipelineState_ = [device_ newComputePipelineStateWithFunction:identityFunction_ error:NULL];
+            commandBuffer_ = [commandQueue_ commandBuffer];
+            commandEncoder_ = [commandBuffer_ computeCommandEncoder];
+            [commandEncoder_ setComputePipelineState:pipelineState_];
+            
             MTLTextureDescriptor* readDesc = [MTLTextureDescriptor texture2DDescriptorWithPixelFormat:MTLPixelFormat::MTLPixelFormatR8Uint
                 width:width height:height mipmapped:true];
             

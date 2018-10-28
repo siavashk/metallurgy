@@ -1,5 +1,7 @@
 #include <morphology.h>
 #include <iostream>
+#include <chrono>
+#include <ctime>
 
 using namespace met;
 
@@ -52,21 +54,21 @@ int main(int argc, char* argv[])
 {
     auto morph = createMorphology(3);
     
-    const int length = 11;
+    const int length = 1001;
     const int kernel = 3;
     
     unsigned char* pixels = makeSquare(kernel, length);
 
     std::shared_ptr<unsigned char> image;
     image.reset(pixels);
-
-    auto dilated = morph->dilate(image, length, length);
     
-    std::cout << "Original image is a square of 1s of length " << kernel
-        << " in a background of zeros of length: " << length << " :" << std::endl;
-    print(image.get(), length);
-    std::cout << "The dilated image has slightly more 1s than the original: " << std::endl;
-    print(dilated.get(), length);
+    auto start = std::chrono::system_clock::now();
+    for (int i=0; i < 1000; i++)
+        morph->dilate(image, length, length);
+    auto end = std::chrono::system_clock::now();
+    std::chrono::duration<double> elapsedSeconds = end - start;
+    
+    std::cout << "Dilation took approximately " << elapsedSeconds.count() / 1000 << " (sec)." << std::endl;
 
     return EXIT_SUCCESS;
 }
