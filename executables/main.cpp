@@ -37,17 +37,6 @@ namespace
         }
         return pixels;
     }
-    void print(
-        const unsigned char* pixels,
-        const int length
-    ) {
-        for (int i=0; i < length; i++)
-        {
-            for (int j=0; j < length; j++)
-                std::cout << int(*(pixels + i * length + j)) << ", ";
-            std::cout << std::endl;
-        }
-    }
 }
 
 int main(int argc, char* argv[])
