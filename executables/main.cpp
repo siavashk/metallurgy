@@ -49,14 +49,7 @@ int main(int argc, char* argv[])
     std::shared_ptr<unsigned char> image;
     image.reset(pixels);
 
-    const int samples = 10000;
-    auto start = std::chrono::system_clock::now();
-    for (int i=0; i < samples; i++)
-        morph->dilate(image);
-    auto end = std::chrono::system_clock::now();
-    std::chrono::duration<double> elapsedSeconds = end - start;
-
-    std::cout << "Dilation took approximately " << elapsedSeconds.count() / samples << " (sec)." << std::endl;
+    morph->inPlaceDilate(image, 1000);
 
     return EXIT_SUCCESS;
 }

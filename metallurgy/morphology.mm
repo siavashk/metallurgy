@@ -20,20 +20,20 @@ namespace
             commandQueue_ = [device_ newCommandQueue];
             dilationFunction_ = [library_ newFunctionWithName:@"dilation"];
             erosionFunction_ = [library_ newFunctionWithName:@"erosion"];
-            
+
             MTLTextureDescriptor* readDesc = [MTLTextureDescriptor texture2DDescriptorWithPixelFormat:MTLPixelFormat::MTLPixelFormatR8Uint
                 width:width height:height mipmapped:false];
-            
+
             MTLTextureDescriptor* writeDesc = [MTLTextureDescriptor texture2DDescriptorWithPixelFormat:MTLPixelFormat::MTLPixelFormatR8Uint
                 width:width height:height mipmapped:false];
-            
+
             [writeDesc setUsage:MTLTextureUsageShaderWrite];
-            
+
             inTexture_ = [device_ newTextureWithDescriptor:readDesc];
             outTexture_ = [device_ newTextureWithDescriptor:writeDesc];
-            
+
             entireImage_ = MTLRegionMake2D(0, 0, width, height);
-            
+
             dilatePipelineState_ = [device_ newComputePipelineStateWithFunction:dilationFunction_ error:NULL];
             erodePipelineState_ = [device_ newComputePipelineStateWithFunction:erosionFunction_ error:NULL];
         }
@@ -72,7 +72,42 @@ namespace
 
             return outImage;
         }
-        
+
+        virtual void inPlaceDilate(
+            const std::shared_ptr<unsigned char>& inImage,
+            const int samples
+        ) override {
+            [inTexture_ replaceRegion:entireImage_ mipmapLevel:0 withBytes:inImage.get() bytesPerRow:outTexture_.width];
+
+            auto start = std::chrono::system_clock::now();
+            for (int i=0; i < samples; i++)
+            {
+                @autoreleasepool
+                {
+                    commandBuffer_ = [commandQueue_ commandBuffer];
+                    commandEncoder_ = [commandBuffer_ computeCommandEncoder];
+                    [commandEncoder_ setComputePipelineState:dilatePipelineState_];
+
+
+                    [commandEncoder_ setTexture:inTexture_ atIndex:0];
+                    [commandEncoder_ setTexture:outTexture_ atIndex:1];
+                    [commandEncoder_ setBuffer:buffer_ offset:0 atIndex:0];
+
+                    MTLSize threadGroupCount = MTLSizeMake(16, 16, 1);
+                    MTLSize threadGroups = MTLSizeMake(inTexture_.width / threadGroupCount.width,
+                        inTexture_.height / threadGroupCount.height, 1);
+
+                    [commandEncoder_ dispatchThreadgroups:threadGroups threadsPerThreadgroup:threadGroupCount];
+                    [commandEncoder_ endEncoding];
+                    [commandBuffer_ commit];
+                    [commandBuffer_ waitUntilCompleted];
+                }
+            }
+            auto end = std::chrono::system_clock::now();
+            std::chrono::duration<double> elapsedSeconds = end - start;
+            std::cout << "Dilation took approximately " << elapsedSeconds.count() << " (sec)." << std::endl;
+        }
+
         virtual std::shared_ptr<unsigned char> erode(
             const std::shared_ptr<unsigned char>& inImage
         ) override {
