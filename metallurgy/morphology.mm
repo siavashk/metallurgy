@@ -19,6 +19,7 @@ namespace
             library_ = [device_ newDefaultLibrary];
             commandQueue_ = [device_ newCommandQueue];
             dilationFunction_ = [library_ newFunctionWithName:@"dilation"];
+            erosionFunction_ = [library_ newFunctionWithName:@"erosion"];
             
             MTLTextureDescriptor* readDesc = [MTLTextureDescriptor texture2DDescriptorWithPixelFormat:MTLPixelFormat::MTLPixelFormatR8Uint
                 width:width height:height mipmapped:false];
@@ -33,8 +34,8 @@ namespace
             
             entireImage_ = MTLRegionMake2D(0, 0, width, height);
             
-            pipelineState_ = [device_ newComputePipelineStateWithFunction:dilationFunction_ error:NULL];
-            
+            dilatePipelineState_ = [device_ newComputePipelineStateWithFunction:dilationFunction_ error:NULL];
+            erodePipelineState_ = [device_ newComputePipelineStateWithFunction:erosionFunction_ error:NULL];
         }
 
         virtual ~MorphologyIOS() override {}
@@ -48,7 +49,7 @@ namespace
             {
                 commandBuffer_ = [commandQueue_ commandBuffer];
                 commandEncoder_ = [commandBuffer_ computeCommandEncoder];
-                [commandEncoder_ setComputePipelineState:pipelineState_];
+                [commandEncoder_ setComputePipelineState:dilatePipelineState_];
 
                 [inTexture_ replaceRegion:entireImage_ mipmapLevel:0 withBytes:inImage.get() bytesPerRow:outTexture_.width];
 
@@ -56,7 +57,40 @@ namespace
                 [commandEncoder_ setTexture:outTexture_ atIndex:1];
                 [commandEncoder_ setBuffer:buffer_ offset:0 atIndex:0];
 
-                MTLSize threadGroupCount = MTLSizeMake(10, 10, 1);
+                MTLSize threadGroupCount = MTLSizeMake(16, 16, 1);
+                MTLSize threadGroups = MTLSizeMake(inTexture_.width / threadGroupCount.width,
+                    inTexture_.height / threadGroupCount.height, 1);
+
+                [commandEncoder_ dispatchThreadgroups:threadGroups threadsPerThreadgroup:threadGroupCount];
+                [commandEncoder_ endEncoding];
+                [commandBuffer_ commit];
+                [commandBuffer_ waitUntilCompleted];
+
+                [outTexture_ getBytes:result bytesPerRow:outTexture_.width fromRegion:entireImage_ mipmapLevel:0];
+                outImage.reset(reinterpret_cast<unsigned char*>(result));
+            }
+
+            return outImage;
+        }
+        
+        virtual std::shared_ptr<unsigned char> erode(
+            const std::shared_ptr<unsigned char>& inImage
+        ) override {
+            void* result = malloc(outTexture_.width * outTexture_.height);
+            std::shared_ptr<unsigned char> outImage;
+            @autoreleasepool
+            {
+                commandBuffer_ = [commandQueue_ commandBuffer];
+                commandEncoder_ = [commandBuffer_ computeCommandEncoder];
+                [commandEncoder_ setComputePipelineState:erodePipelineState_];
+
+                [inTexture_ replaceRegion:entireImage_ mipmapLevel:0 withBytes:inImage.get() bytesPerRow:outTexture_.width];
+
+                [commandEncoder_ setTexture:inTexture_ atIndex:0];
+                [commandEncoder_ setTexture:outTexture_ atIndex:1];
+                [commandEncoder_ setBuffer:buffer_ offset:0 atIndex:0];
+
+                MTLSize threadGroupCount = MTLSizeMake(16, 16, 1);
                 MTLSize threadGroups = MTLSizeMake(inTexture_.width / threadGroupCount.width,
                     inTexture_.height / threadGroupCount.height, 1);
 
@@ -77,9 +111,11 @@ namespace
         uint kernelSize_;
         id<MTLBuffer> buffer_;
         id<MTLLibrary> library_;
-        id<MTLComputePipelineState> pipelineState_;
+        id<MTLComputePipelineState> dilatePipelineState_;
+        id<MTLComputePipelineState> erodePipelineState_;
         id<MTLCommandQueue> commandQueue_;
         id<MTLFunction> dilationFunction_;
+        id<MTLFunction> erosionFunction_;
         id<MTLCommandBuffer> commandBuffer_;
         id<MTLComputeCommandEncoder> commandEncoder_;
         id<MTLTexture> inTexture_;

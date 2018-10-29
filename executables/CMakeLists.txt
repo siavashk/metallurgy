@@ -11,13 +11,6 @@ set_source_files_properties(
     METAL
 )
 
-set_source_files_properties(
-    ${METAL_SHADERS}
-    PROPERTIES
-    MACOSX_PACKAGE_LOCATION
-    Resources
-)
-
 add_executable(metallurgycl MACOSX_BUNDLE main.cpp ${METAL_SHADERS})
 
 target_include_directories(metallurgycl PRIVATE ${CMAKE_SOURCE_DIR}/metallurgy)

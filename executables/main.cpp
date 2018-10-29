@@ -49,7 +49,7 @@ int main(int argc, char* argv[])
     std::shared_ptr<unsigned char> image;
     image.reset(pixels);
 
-    const int samples = 1000;
+    const int samples = 10000;
     auto start = std::chrono::system_clock::now();
     for (int i=0; i < samples; i++)
         morph->dilate(image);
