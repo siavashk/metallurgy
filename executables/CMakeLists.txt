@@ -23,3 +23,5 @@ add_executable(metallurgycl MACOSX_BUNDLE main.cpp ${METAL_SHADERS})
 target_include_directories(metallurgycl PRIVATE ${CMAKE_SOURCE_DIR}/metallurgy)
 
 target_link_libraries(metallurgycl metallurgy)
+
+cotire(metallurgycl)
