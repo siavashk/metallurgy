@@ -18,7 +18,7 @@ namespace
             buffer_ = [device_ newBufferWithBytes:&kernelSize_ length:4 options:MTLStorageModeShared];
             library_ = [device_ newDefaultLibrary];
             commandQueue_ = [device_ newCommandQueue];
-            identityFunction_ = [library_ newFunctionWithName:@"identity"];
+            dilationFunction_ = [library_ newFunctionWithName:@"dilation"];
             
             MTLTextureDescriptor* readDesc = [MTLTextureDescriptor texture2DDescriptorWithPixelFormat:MTLPixelFormat::MTLPixelFormatR8Uint
                 width:width height:height mipmapped:false];
@@ -33,7 +33,7 @@ namespace
             
             entireImage_ = MTLRegionMake2D(0, 0, width, height);
             
-            pipelineState_ = [device_ newComputePipelineStateWithFunction:identityFunction_ error:NULL];
+            pipelineState_ = [device_ newComputePipelineStateWithFunction:dilationFunction_ error:NULL];
             
         }
 
@@ -79,7 +79,7 @@ namespace
         id<MTLLibrary> library_;
         id<MTLComputePipelineState> pipelineState_;
         id<MTLCommandQueue> commandQueue_;
-        id<MTLFunction> identityFunction_;
+        id<MTLFunction> dilationFunction_;
         id<MTLCommandBuffer> commandBuffer_;
         id<MTLComputeCommandEncoder> commandEncoder_;
         id<MTLTexture> inTexture_;
